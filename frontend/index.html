@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASI Prediction Market</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #06080f;
+      --bg2: #0c1019;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --border: #1f2a3f;
+      --border-hover: #2d3a52;
+      --accent: #6366f1;
+      --accent-glow: rgba(99,102,241,0.15);
+      --accent-hover: #818cf8;
+      --yes: #10b981;
+      --yes-bg: rgba(16,185,129,0.1);
+      --yes-border: rgba(16,185,129,0.25);
+      --no: #f43f5e;
+      --no-bg: rgba(244,63,94,0.1);
+      --no-border: rgba(244,63,94,0.25);
+      --text: #f1f5f9;
+      --text2: #cbd5e1;
+      --muted: #64748b;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* Subtle grid bg */
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1;
+      background-image: radial-gradient(circle at 1px 1px, rgba(99,102,241,0.03) 1px, transparent 0);
+      background-size: 40px 40px;
+    }
+
+    .app { max-width: 1000px; margin: 0 auto; padding: 20px 24px; }
+
+    /* Header */
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0 28px; }
+    .header-left { display: flex; align-items: center; gap: 14px; }
+    .logo { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), #a78bfa); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: white; }
+    .header-title h1 { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -0.5px; }
+    .header-title p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .network-badge { padding: 6px 12px; background: var(--accent-glow); border: 1px solid rgba(99,102,241,0.3); border-radius: 20px; font-size: 12px; font-weight: 500; color: var(--accent-hover); display: flex; align-items: center; gap: 6px; }
+    .network-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--yes); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Wallet */
+    .wallet-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 24px; }
+    .wallet-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--no); flex-shrink: 0; transition: background 0.3s; }
+    .wallet-dot.on { background: var(--yes); box-shadow: 0 0 8px rgba(16,185,129,0.4); }
+    .wallet-label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .wallet-input { flex: 1; padding: 8px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 12px; font-family: 'SF Mono', 'Fira Code', monospace; outline: none; }
+    .wallet-input:focus { border-color: var(--accent); }
+    .wallet-input:disabled { opacity: 0.6; }
+
+    /* Buttons */
+    button { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; }
+    button:active { transform: scale(0.97); }
+    .btn { background: var(--accent); color: white; }
+    .btn:hover { background: var(--accent-hover); box-shadow: 0 0 20px var(--accent-glow); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-sm { padding: 6px 14px; font-size: 12px; }
+    .btn-yes { background: var(--yes); color: white; }
+    .btn-yes:hover { background: #059669; }
+    .btn-no { background: var(--no); color: white; }
+    .btn-no:hover { background: #e11d48; }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+    .btn-ghost:hover { border-color: var(--border-hover); background: var(--surface2); }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 2px; padding: 4px; background: var(--surface); border-radius: 10px; margin-bottom: 24px; border: 1px solid var(--border); }
+    .tab { flex: 1; padding: 10px 16px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; border-radius: 8px; text-align: center; transition: all 0.2s; border: none; background: none; font-family: 'Inter', sans-serif; }
+    .tab:hover { color: var(--text2); }
+    .tab.active { background: var(--accent); color: white; box-shadow: 0 2px 8px var(--accent-glow); }
+    .section { display: none; }
+    .section.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* Cards */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .card-header h2 { font-size: 15px; font-weight: 600; color: var(--text); }
+
+    /* Market cards */
+    .markets-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 700px) { .markets-grid { grid-template-columns: 1fr; } }
+
+    .market-card { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; transition: all 0.2s; position: relative; overflow: hidden; }
+    .market-card:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    .market-id { position: absolute; top: 12px; right: 14px; font-size: 11px; color: var(--muted); font-weight: 500; font-family: monospace; }
+    .market-question { font-size: 14px; font-weight: 600; line-height: 1.45; margin-bottom: 12px; padding-right: 30px; }
+    .market-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .tag { padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+    .tag-category { background: var(--accent-glow); color: var(--accent-hover); border: 1px solid rgba(99,102,241,0.2); }
+    .tag-open { background: rgba(16,185,129,0.1); color: var(--yes); border: 1px solid rgba(16,185,129,0.2); }
+    .tag-resolved { background: rgba(244,63,94,0.1); color: var(--no); border: 1px solid rgba(244,63,94,0.2); }
+    .tag-oracle { background: rgba(251,191,36,0.1); color: #fbbf24; border: 1px solid rgba(251,191,36,0.2); }
+
+    /* Probability bar */
+    .prob-section { margin: 14px 0; }
+    .prob-bar { display: flex; height: 32px; border-radius: 8px; overflow: hidden; background: var(--bg); border: 1px solid var(--border); }
+    .prob-yes { background: linear-gradient(90deg, var(--yes), #34d399); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: white; transition: width 0.5s ease; min-width: 40px; }
+    .prob-no { background: linear-gradient(90deg, #fb7185, var(--no)); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: white; transition: width 0.5s ease; min-width: 40px; }
+    .prob-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; }
+    .prob-labels .lbl-yes { color: var(--yes); }
+    .prob-labels .lbl-no { color: var(--no); }
+
+    /* Bet controls */
+    .bet-controls { display: flex; gap: 6px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .bet-controls input { flex: 1; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; font-family: 'Inter', sans-serif; outline: none; min-width: 0; }
+    .bet-controls input:focus { border-color: var(--accent); }
+    .bet-controls input::placeholder { color: var(--muted); }
+
+    /* Outcome badge for resolved */
+    .outcome-banner { margin: 10px 0; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; text-align: center; }
+    .outcome-yes { background: var(--yes-bg); border: 1px solid var(--yes-border); color: var(--yes); }
+    .outcome-no { background: var(--no-bg); border: 1px solid var(--no-border); color: var(--no); }
+
+    /* Form inputs */
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-input { width: 100%; padding: 10px 14px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.2s; }
+    .form-input:focus { border-color: var(--accent); }
+    .form-input::placeholder { color: var(--muted); }
+    .form-row { display: flex; gap: 12px; }
+    .form-row > * { flex: 1; }
+
+    /* Log panel */
+    .log { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.7; color: var(--muted); max-height: 200px; overflow-y: auto; margin-top: 14px; }
+    .log::-webkit-scrollbar { width: 4px; }
+    .log::-webkit-scrollbar-track { background: transparent; }
+    .log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .log .ok { color: var(--yes); }
+    .log .err { color: var(--no); }
+    .log .inf { color: var(--accent-hover); }
+    .log .ts { color: var(--muted); font-size: 10px; margin-right: 6px; }
+
+    /* Deploy info */
+    .deploy-info { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .deploy-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .deploy-row:last-child { border-bottom: none; }
+    .deploy-key { color: var(--muted); }
+    .deploy-val { color: var(--text); font-family: monospace; font-size: 12px; word-break: break-all; max-width: 60%; text-align: right; }
+    .deploy-val a { color: var(--accent-hover); text-decoration: none; }
+    .deploy-val a:hover { text-decoration: underline; }
+
+    /* Stats bar */
+    .stats-bar { display: flex; gap: 12px; margin-bottom: 20px; }
+    .stat-item { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; text-align: center; }
+    .stat-num { font-size: 24px; font-weight: 700; color: var(--text); }
+    .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Loading spinner */
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
+    .empty-state p { font-size: 14px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <div class="logo">P</div>
+        <div class="header-title">
+          <h1>ASI Prediction Market</h1>
+          <p>Decentralized markets on ASI:Chain</p>
+        </div>
+      </div>
+      <div class="network-badge">DevNet</div>
+    </div>
+
+    <!-- Wallet -->
+    <div class="wallet-bar">
+      <div class="wallet-dot" id="walletDot"></div>
+      <span class="wallet-label" id="walletLabel">Not connected</span>
+      <input class="wallet-input" type="password" id="privateKeyInput" placeholder="Enter private key (hex)..." />
+      <button class="btn btn-sm" id="connectBtn" onclick="connectWallet()">Connect</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="markets" onclick="switchTab('markets')">Markets</button>
+      <button class="tab" data-tab="create" onclick="switchTab('create')">Create</button>
+      <button class="tab" data-tab="resolve" onclick="switchTab('resolve')">Resolve</button>
+      <button class="tab" data-tab="deploy" onclick="switchTab('deploy')">Deploy</button>
+    </div>
+
+    <!-- Markets Tab -->
+    <div class="section active" id="tab-markets">
+      <div class="stats-bar">
+        <div class="stat-item"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Markets</div></div>
+        <div class="stat-item"><div class="stat-num" id="statOpen">0</div><div class="stat-label">Open</div></div>
+        <div class="stat-item"><div class="stat-num" id="statVolume">0</div><div class="stat-label">Total Volume</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2>All Markets</h2>
+          <button class="btn btn-sm" onclick="refreshMarkets()">Refresh</button>
+        </div>
+        <div id="marketsList">
+          <div class="empty-state">
+            <div class="icon">&#9878;</div>
+            <p>No markets yet. Deploy the contract and create markets to get started.</p>
+          </div>
+        </div>
+      </div>
+      <div class="log" id="marketsLog" style="display:none;"></div>
+    </div>
+
+    <!-- Create Tab -->
+    <div class="section" id="tab-create">
+      <div class="card">
+        <div class="card-header"><h2>Create New Market</h2></div>
+        <div class="form-group">
+          <label>Question</label>
+          <input class="form-input" id="createQuestion" placeholder="Will BTC hit $100k by end of 2026?" />
+        </div>
+        <div class="form-group">
+          <label>Oracle</label>
+          <input class="form-input" id="createOracle" placeholder="Who can resolve this market?" />
+        </div>
+        <button class="btn" onclick="createMarket()">Create Market</button>
+      </div>
+      <div class="log" id="createLog" style="display:none;"></div>
+    </div>
+
+    <!-- Resolve Tab -->
+    <div class="section" id="tab-resolve">
+      <div class="card">
+        <div class="card-header"><h2>Resolve Market</h2></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Market ID</label>
+            <input class="form-input" id="resolveMarketId" type="number" value="0" />
+          </div>
+          <div class="form-group">
+            <label>Your Oracle Name</label>
+            <input class="form-input" id="resolveCaller" placeholder="oracle1" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Outcome</label>
+          <select class="form-input" id="resolveOutcome">
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <button class="btn" onclick="resolveMarket()">Resolve Market</button>
+      </div>
+      <div class="log" id="resolveLog" style="display:none;"></div>
+    </div>
+
+    <!-- Deploy Tab -->
+    <div class="section" id="tab-deploy">
+      <div class="card">
+        <div class="card-header"><h2>Contract Deployment</h2></div>
+        <div class="deploy-info">
+          <div class="deploy-row"><span class="deploy-key">Status</span><span class="deploy-val" style="color:var(--yes);">Deployed</span></div>
+          <div class="deploy-row"><span class="deploy-key">Block</span><span class="deploy-val">438724</span></div>
+          <div class="deploy-row"><span class="deploy-key">Block Hash</span><span class="deploy-val">72e98a7d...c071e8</span></div>
+          <div class="deploy-row"><span class="deploy-key">Deploy ID</span><span class="deploy-val"><a href="https://explorer.dev.asichain.io" target="_blank">30450221...1578d5</a></span></div>
+          <div class="deploy-row"><span class="deploy-key">Deployer</span><span class="deploy-val">04440adf...5a5581</span></div>
+          <div class="deploy-row"><span class="deploy-key">Timestamp</span><span class="deploy-val">May 14, 2026 00:15 UTC</span></div>
+          <div class="deploy-row"><span class="deploy-key">Network</span><span class="deploy-val">ASI:Chain DevNet</span></div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" onclick="deployContract()">Redeploy Contract</button>
+          <button class="btn" onclick="deploySampleMarkets()">Deploy + 10 Sample Markets</button>
+        </div>
+      </div>
+      <div class="log" id="deployLog" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { secp256k1 as secp } from 'https://esm.sh/@noble/curves@1.8.1/secp256k1'
+    import { blake2b } from 'https://esm.sh/@noble/hashes@1.7.1/blake2b'
+    import { bytesToHex, hexToBytes, utf8ToBytes, concatBytes } from 'https://esm.sh/@noble/hashes@1.7.1/utils'
+
+    const API = 'https://ihmps4dkpg.execute-api.us-east-1.amazonaws.com/prod/bb93eaa595aaddf6912e372debc73eef/endpoint_0/HTTP_API'
+    const INDEXER = 'https://indexer.dev.asichain.io/v1/graphql'
+
+    let privateKey = null
+    let pubKeyHex = null
+    let localMarkets = []
+
+    const CATEGORIES = {
+      'fifa_oracle': 'Sports', 'fed_oracle': 'Economy', 'ai_oracle': 'Technology',
+      'politics_oracle': 'Politics', 'ipo_oracle': 'Finance', 'crypto_oracle': 'Crypto',
+      'commodities_oracle': 'Commodities', 'finance_oracle': 'Finance'
+    }
+    const CAT_COLORS = {
+      'Sports': '#f59e0b', 'Economy': '#06b6d4', 'Technology': '#a78bfa',
+      'Politics': '#f97316', 'Finance': '#6366f1', 'Crypto': '#fbbf24', 'Commodities': '#84cc16'
+    }
+
+    const SAMPLE_MARKETS = [
+      { question: "Will France win the 2026 FIFA World Cup?", oracle: "fifa_oracle" },
+      { question: "Will the Fed cut rates in June 2026?", oracle: "fed_oracle" },
+      { question: "Will Anthropic have the best AI model at end of May 2026?", oracle: "ai_oracle" },
+      { question: "Will Keir Starmer still be UK PM on December 31 2026?", oracle: "politics_oracle" },
+      { question: "Will SpaceX IPO before end of 2026?", oracle: "ipo_oracle" },
+      { question: "Will BTC be above 120k on June 30 2026?", oracle: "crypto_oracle" },
+      { question: "Will Lula win the Brazil Presidential Election?", oracle: "politics_oracle" },
+      { question: "Will WTI Crude Oil hit 75 in May 2026?", oracle: "commodities_oracle" },
+      { question: "Will Apple be the largest company by market cap end of June 2026?", oracle: "finance_oracle" },
+      { question: "Will Cerebras complete its IPO before July 2026?", oracle: "ipo_oracle" }
+    ]
+
+    // --- Protobuf signing ---
+    function encodeVarint(value) {
+      const bytes = []; let v = BigInt(value)
+      while (v > 127n) { bytes.push(Number((v & 0xffn) | 0x80n)); v >>= 7n }
+      bytes.push(Number(v)); return new Uint8Array(bytes)
+    }
+    function tag(n, w) { return encodeVarint((n << 3) | w) }
+    function str(n, v) {
+      if (!v) return new Uint8Array(0)
+      const e = utf8ToBytes(v)
+      return concatBytes(tag(n, 2), encodeVarint(e.length), e)
+    }
+    function int64(n, v) {
+      if (!v) return new Uint8Array(0)
+      return concatBytes(tag(n, 0), encodeVarint(v))
+    }
+
+    // --- Core ---
+    async function signAndDeploy(term, phloLimit = 500000) {
+      if (!privateKey) throw new Error('Wallet not connected')
+      const timestamp = Date.now()
+      const blocksRes = await fetch(`${API}/api/blocks/1`)
+      const blocks = await blocksRes.json()
+      const validAfterBlockNumber = blocks[0]?.blockNumber ?? 0
+      const projection = concatBytes(
+        str(2, term), int64(3, timestamp), int64(7, 1),
+        int64(8, phloLimit), int64(10, validAfterBlockNumber), str(11, 'root')
+      )
+      const hash = blake2b(projection, { dkLen: 32 })
+      const sig = secp.sign(hash, privateKey, { lowS: true })
+      const res = await fetch(`${API}/api/deploy`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: { term, timestamp, phloPrice: 1, phloLimit, validAfterBlockNumber, shardId: 'root', language: 'rholang' },
+          deployer: pubKeyHex, signature: sig.toDERHex(), sigAlgorithm: 'secp256k1'
+        })
+      })
+      const text = await res.text()
+      if (!res.ok) throw new Error(`Deploy failed: ${text}`)
+      const match = text.match(/[0-9a-f]{100,}/i)
+      return match ? match[0] : text.replace(/"/g, '')
+    }
+
+    async function waitForDeploy(deployId, logEl) {
+      const start = Date.now()
+      while (Date.now() - start < 120000) {
+        await new Promise(r => setTimeout(r, 8000))
+        try {
+          const res = await fetch(INDEXER, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: `{ deployments(where: {deploy_id: {_eq: "${deployId}"}}) { deploy_id errored error_message block_number } }` })
+          })
+          const json = await res.json()
+          const d = json.data?.deployments?.[0]
+          if (d) { if (d.errored) throw new Error(d.error_message); return d }
+        } catch (e) { if (e.message && !e.message.includes('fetch')) throw e }
+        if (logEl) appendLog(logEl, 'Waiting for block confirmation...', 'inf')
+      }
+      throw new Error('Timeout')
+    }
+
+    async function exploreDeploy(term) {
+      const res = await fetch(`${API}/api/explore-deploy`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ term })
+      })
+      return res.json()
+    }
+
+    // --- UI ---
+    function now() { return new Date().toLocaleTimeString('en', { hour12: false }) }
+    function appendLog(el, msg, cls = '') {
+      el.style.display = 'block'
+      const span = document.createElement('span')
+      span.innerHTML = `<span class="ts">[${now()}]</span><span class="${cls}">${msg}</span>\n`
+      el.appendChild(span); el.scrollTop = el.scrollHeight
+    }
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name))
+      document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === `tab-${name}`))
+    }
+    window.switchTab = switchTab
+
+    function connectWallet() {
+      const input = document.getElementById('privateKeyInput')
+      const hex = input.value.trim().replace(/^0x/, '')
+      try {
+        privateKey = hexToBytes(hex)
+        const pub = secp.getPublicKey(privateKey, false)
+        pubKeyHex = bytesToHex(pub)
+        document.getElementById('walletDot').classList.add('on')
+        document.getElementById('walletLabel').textContent = `${pubKeyHex.slice(0, 10)}...${pubKeyHex.slice(-6)}`
+        document.getElementById('connectBtn').textContent = 'Connected'
+        document.getElementById('connectBtn').disabled = true
+        input.value = `${pubKeyHex.slice(0, 10)}...${pubKeyHex.slice(-6)}`
+        input.disabled = true; input.type = 'text'
+      } catch (e) { alert('Invalid private key: ' + e.message) }
+    }
+    window.connectWallet = connectWallet
+
+    function updateStats() {
+      const open = localMarkets.filter(m => m.status === 'open').length
+      const vol = localMarkets.reduce((s, m) => s + (m.totalYes || 0) + (m.totalNo || 0), 0)
+      document.getElementById('statTotal').textContent = localMarkets.length
+      document.getElementById('statOpen').textContent = open
+      document.getElementById('statVolume').textContent = vol.toLocaleString()
+    }
+
+    function renderAllMarkets() {
+      const container = document.getElementById('marketsList')
+      container.innerHTML = ''
+      if (localMarkets.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="icon">&#9878;</div><p>No markets yet.</p></div>'
+        updateStats(); return
+      }
+      const grid = document.createElement('div')
+      grid.className = 'markets-grid'
+      localMarkets.forEach((data, id) => grid.appendChild(buildMarketCard(id, data)))
+      container.appendChild(grid)
+      updateStats()
+    }
+
+    function buildMarketCard(id, data) {
+      const status = data.status || 'open'
+      const totalYes = data.totalYes || 0
+      const totalNo = data.totalNo || 0
+      const total = totalYes + totalNo
+      const yesPct = total > 0 ? Math.round((totalYes / total) * 100) : 50
+      const noPct = 100 - yesPct
+      const cat = CATEGORIES[data.oracle] || 'General'
+      const catColor = CAT_COLORS[cat] || '#6366f1'
+
+      const div = document.createElement('div')
+      div.className = 'market-card'
+      div.innerHTML = `
+        <span class="market-id">#${id}</span>
+        <div class="market-question">${data.question || `Market #${id}`}</div>
+        <div class="market-tags">
+          <span class="tag" style="background:${catColor}15; color:${catColor}; border:1px solid ${catColor}33;">${cat}</span>
+          <span class="tag tag-${status}">${status}</span>
+        </div>
+        ${status === 'resolved' && data.outcome ? `<div class="outcome-banner outcome-${data.outcome}">Resolved: ${data.outcome.toUpperCase()}</div>` : ''}
+        <div class="prob-section">
+          <div class="prob-bar">
+            <div class="prob-yes" style="width:${yesPct}%">${yesPct}%</div>
+            <div class="prob-no" style="width:${noPct}%">${noPct}%</div>
+          </div>
+          <div class="prob-labels">
+            <span class="lbl-yes">Yes ${totalYes.toLocaleString()}</span>
+            <span class="lbl-no">No ${totalNo.toLocaleString()}</span>
+          </div>
+        </div>
+        ${status === 'open' ? `
+        <div class="bet-controls">
+          <input id="bet-name-${id}" placeholder="Name" />
+          <input id="bet-amount-${id}" type="number" placeholder="Amount" min="1" style="width:80px;" />
+          <button class="btn-yes btn-sm" onclick="placeBet(${id},'yes')">Yes</button>
+          <button class="btn-no btn-sm" onclick="placeBet(${id},'no')">No</button>
+        </div>` : ''}
+      `
+      return div
+    }
+
+    // --- Contract source (minified) ---
+    const CONTRACT_SOURCE = `new PredictionMarket in {
+  new markets, bets, nextMarketId in {
+    markets!({}) | bets!({}) | nextMarketId!(0) |
+    contract PredictionMarket(@"createMarket", @question, @oracle, ack) = {
+      for (@mkt <- markets; @nextId <- nextMarketId) {
+        markets!(mkt.set(nextId, {"question": question, "oracle": oracle, "status": "open", "outcome": "", "totalYes": 0, "totalNo": 0})) | nextMarketId!(nextId + 1) | ack!(nextId)
+      }
+    } |
+    contract PredictionMarket(@"placeBet", @marketId, @bettor, @side, @amount, ack) = {
+      for (@mkt <- markets; @bts <- bets) {
+        match mkt.contains(marketId) {
+          false => { markets!(mkt) | bets!(bts) | ack!("error: market not found") }
+          true => { match mkt.get(marketId).get("status") == "open" {
+            false => { markets!(mkt) | bets!(bts) | ack!("error: market is not open") }
+            true => { match (side == "yes") or (side == "no") {
+              false => { markets!(mkt) | bets!(bts) | ack!("error: side must be yes or no") }
+              true => { match amount > 0 {
+                false => { markets!(mkt) | bets!(bts) | ack!("error: amount must be positive") }
+                true => { new betKeyCalc in { betKeyCalc!(marketId ++ ":" ++ bettor ++ ":" ++ side) | for (@bk <- betKeyCalc) { new updatedMarketData in { updatedMarketData!(mkt.get(marketId)) | for (@m <- updatedMarketData) { new newMarketData in { match side == "yes" { true => { newMarketData!(m.set("totalYes", m.get("totalYes") + amount)) } false => { newMarketData!(m.set("totalNo", m.get("totalNo") + amount)) } } | for (@nm <- newMarketData) { match bts.contains(bk) { true => { markets!(mkt.set(marketId, nm)) | bets!(bts.set(bk, bts.get(bk) + amount)) | ack!("ok") } false => { markets!(mkt.set(marketId, nm)) | bets!(bts.set(bk, amount)) | ack!("ok") } } } } } } } } } } } } } } }
+    } |
+    contract PredictionMarket(@"resolveMarket", @marketId, @caller, @outcome, ack) = {
+      for (@mkt <- markets) { match mkt.contains(marketId) {
+        false => { markets!(mkt) | ack!("error: market not found") }
+        true => { match mkt.get(marketId).get("status") == "open" {
+          false => { markets!(mkt) | ack!("error: market already resolved") }
+          true => { match caller == mkt.get(marketId).get("oracle") {
+            false => { markets!(mkt) | ack!("error: only oracle can resolve") }
+            true => { match (outcome == "yes") or (outcome == "no") {
+              false => { markets!(mkt) | ack!("error: outcome must be yes or no") }
+              true => { new m in { m!(mkt.get(marketId)) | for (@mk <- m) { markets!(mkt.set(marketId, mk.set("status", "resolved").set("outcome", outcome))) | ack!(("resolved", marketId, outcome)) } } } } } } } } }
+    } |
+    contract PredictionMarket(@"computePayout", @marketId, @bettor, @side, ack) = {
+      for (@mkt <- markets; @bts <- bets) { markets!(mkt) | bets!(bts) | match mkt.contains(marketId) {
+        false => { ack!("error: market not found") }
+        true => { new m in { m!(mkt.get(marketId)) | for (@mk <- m) { match mk.get("status") == "resolved" {
+          false => { ack!("error: market not yet resolved") }
+          true => { match mk.get("outcome") == side {
+            false => { ack!(0) }
+            true => { new betKeyCalc in { betKeyCalc!(marketId ++ ":" ++ bettor ++ ":" ++ side) | for (@bk <- betKeyCalc) { match bts.contains(bk) {
+              false => { ack!(0) }
+              true => { new userBet, winnerPool, loserPool in { userBet!(bts.get(bk)) | match side == "yes" { true => { winnerPool!(mk.get("totalYes")) | loserPool!(mk.get("totalNo")) } false => { winnerPool!(mk.get("totalNo")) | loserPool!(mk.get("totalYes")) } } | for (@ub <- userBet; @wp <- winnerPool; @lp <- loserPool) { match wp > 0 { false => { ack!(ub) } true => { ack!(ub + (ub * lp) / wp) } } } } } } } } } } } } } }
+    } |
+    contract PredictionMarket(@"getMarket", @marketId, ack) = {
+      for (@mkt <- markets) { markets!(mkt) | match mkt.contains(marketId) { false => { ack!("error: market not found") } true => { ack!(mkt.get(marketId)) } } }
+    } |
+    @"asi_prediction_market_v1"!(*PredictionMarket)
+  }
+}`
+
+    // --- Actions ---
+    async function deployContract() {
+      const log = document.getElementById('deployLog'); log.innerHTML = ''
+      if (!privateKey) { appendLog(log, 'Connect your wallet first!', 'err'); return }
+      try {
+        appendLog(log, 'Deploying prediction market contract...', 'inf')
+        const deployId = await signAndDeploy(CONTRACT_SOURCE, 1000000)
+        appendLog(log, `Deploy ID: ${deployId}`, 'inf')
+        const result = await waitForDeploy(deployId, log)
+        appendLog(log, `Confirmed in block ${result.block_number}`, 'ok')
+      } catch (e) { appendLog(log, `Error: ${e.message}`, 'err') }
+    }
+    window.deployContract = deployContract
+
+    async function deploySampleMarkets() {
+      const log = document.getElementById('deployLog'); log.innerHTML = ''
+      if (!privateKey) { appendLog(log, 'Connect your wallet first!', 'err'); return }
+      try {
+        appendLog(log, 'Deploying contract...', 'inf')
+        const deployId = await signAndDeploy(CONTRACT_SOURCE, 1000000)
+        await waitForDeploy(deployId, log)
+        appendLog(log, 'Contract deployed!', 'ok')
+        for (let i = 0; i < SAMPLE_MARKETS.length; i++) {
+          const m = SAMPLE_MARKETS[i]
+          const term = `new ack in { for (PM <- @"asi_prediction_market_v1") { PM!("createMarket", "${m.question}", "${m.oracle}", *ack) | for (@r <- ack) { @"cr"!(r) } } }`
+          appendLog(log, `[${i+1}/10] ${m.question}`, 'inf')
+          const mid = await signAndDeploy(term, 500000)
+          await waitForDeploy(mid, log)
+          localMarkets.push({ ...m, status: 'open', outcome: '', totalYes: 0, totalNo: 0 })
+          appendLog(log, `Market #${i} created`, 'ok')
+          renderAllMarkets()
+        }
+        appendLog(log, 'All 10 markets created!', 'ok')
+        switchTab('markets')
+      } catch (e) { appendLog(log, `Error: ${e.message}`, 'err') }
+    }
+    window.deploySampleMarkets = deploySampleMarkets
+
+    async function createMarket() {
+      const log = document.getElementById('createLog'); log.innerHTML = ''
+      if (!privateKey) { appendLog(log, 'Connect your wallet first!', 'err'); return }
+      const question = document.getElementById('createQuestion').value.trim()
+      const oracle = document.getElementById('createOracle').value.trim()
+      if (!question || !oracle) { appendLog(log, 'Fill in all fields', 'err'); return }
+      try {
+        const term = `new ack in { for (PM <- @"asi_prediction_market_v1") { PM!("createMarket", "${question}", "${oracle}", *ack) | for (@r <- ack) { @"cr"!(r) } } }`
+        appendLog(log, `Creating: "${question}"`, 'inf')
+        const deployId = await signAndDeploy(term, 500000)
+        const result = await waitForDeploy(deployId, log)
+        localMarkets.push({ question, oracle, status: 'open', outcome: '', totalYes: 0, totalNo: 0 })
+        renderAllMarkets()
+        appendLog(log, `Market created! Block: ${result.block_number}`, 'ok')
+      } catch (e) { appendLog(log, `Error: ${e.message}`, 'err') }
+    }
+    window.createMarket = createMarket
+
+    async function placeBet(marketId, side) {
+      const log = document.getElementById('marketsLog')
+      log.innerHTML = ''
+      if (!privateKey) { appendLog(log, 'Connect your wallet first!', 'err'); return }
+      const amount = parseInt(document.getElementById(`bet-amount-${marketId}`)?.value || '0')
+      const name = document.getElementById(`bet-name-${marketId}`)?.value?.trim() || 'anon'
+      if (amount <= 0) { appendLog(log, 'Enter a valid bet amount', 'err'); return }
+      try {
+        const term = `new ack in { for (PM <- @"asi_prediction_market_v1") { PM!("placeBet", ${marketId}, "${name}", "${side}", ${amount}, *ack) | for (@r <- ack) { @"br"!(r) } } }`
+        appendLog(log, `Placing ${side} bet of ${amount} on market #${marketId}...`, 'inf')
+        const deployId = await signAndDeploy(term, 500000)
+        const result = await waitForDeploy(deployId, log)
+        // Update local state
+        if (localMarkets[marketId]) {
+          if (side === 'yes') localMarkets[marketId].totalYes += amount
+          else localMarkets[marketId].totalNo += amount
+          renderAllMarkets()
+        }
+        appendLog(log, `Bet placed! Block: ${result.block_number}`, 'ok')
+      } catch (e) { appendLog(log, `Error: ${e.message}`, 'err') }
+    }
+    window.placeBet = placeBet
+
+    async function resolveMarket() {
+      const log = document.getElementById('resolveLog'); log.innerHTML = ''
+      if (!privateKey) { appendLog(log, 'Connect your wallet first!', 'err'); return }
+      const marketId = parseInt(document.getElementById('resolveMarketId').value)
+      const caller = document.getElementById('resolveCaller').value.trim()
+      const outcome = document.getElementById('resolveOutcome').value
+      if (!caller) { appendLog(log, 'Enter your oracle name', 'err'); return }
+      try {
+        const term = `new ack in { for (PM <- @"asi_prediction_market_v1") { PM!("resolveMarket", ${marketId}, "${caller}", "${outcome}", *ack) | for (@r <- ack) { @"rr"!(r) } } }`
+        appendLog(log, `Resolving market #${marketId} as "${outcome}"...`, 'inf')
+        const deployId = await signAndDeploy(term, 500000)
+        const result = await waitForDeploy(deployId, log)
+        if (localMarkets[marketId]) {
+          localMarkets[marketId].status = 'resolved'
+          localMarkets[marketId].outcome = outcome
+          renderAllMarkets()
+        }
+        appendLog(log, `Resolved! Block: ${result.block_number}`, 'ok')
+      } catch (e) { appendLog(log, `Error: ${e.message}`, 'err') }
+    }
+    window.resolveMarket = resolveMarket
+
+    async function refreshMarkets() {
+      const log = document.getElementById('marketsLog'); log.innerHTML = ''
+      if (localMarkets.length === 0) { appendLog(log, 'No markets yet', 'inf'); return }
+      renderAllMarkets()
+      appendLog(log, `Showing ${localMarkets.length} market(s)`, 'ok')
+    }
+    window.refreshMarkets = refreshMarkets
+
+    // Init with sample markets pre-loaded (they're being created on-chain)
+    SAMPLE_MARKETS.forEach(m => {
+      localMarkets.push({ ...m, status: 'open', outcome: '', totalYes: 0, totalNo: 0 })
+    })
+    renderAllMarkets()
+  </script>
+</body>
+</html>

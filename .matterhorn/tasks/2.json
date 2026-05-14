@@ -1,0 +1,8 @@
+{
+  "id": "2",
+  "subject": "Validate Rholang via explore-deploy",
+  "description": "Run the contract through explore-deploy endpoint for syntax validation",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

@@ -1,0 +1,9 @@
+{
+  "id": "8",
+  "subject": "Create 10 sample markets on-chain",
+  "description": "Deploy 10 sample markets using the CLI scripts with the user's private key",
+  "activeForm": "Creating 10 sample markets on-chain",
+  "status": "in_progress",
+  "blocks": [],
+  "blockedBy": []
+}

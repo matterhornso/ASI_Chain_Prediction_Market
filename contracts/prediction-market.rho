@@ -1,0 +1,224 @@
+// ASI:Chain Prediction Market
+// INVARIANTS:
+//   1. Each state channel (markets, bets, nextMarketId) holds exactly 1 message at all times
+//   2. A resolved market cannot accept new bets
+//   3. Only the designated oracle can resolve a market
+//   4. Payout = stake + (stake * loserPool) / winnerPool (proportional share)
+//   5. All sensitive channels are inside `new` blocks (OCAP)
+
+new PredictionMarket in {
+  new markets, bets, nextMarketId in {
+    // INVARIANT: single-message state channels initialized
+    markets!({}) |
+    bets!({}) |
+    nextMarketId!(0) |
+
+    // createMarket: Creates a yes/no prediction market
+    // @question: string describing the prediction
+    // @oracle: address authorized to resolve this market
+    // *ack: unquoting — receiver sends result back on this channel
+    contract PredictionMarket(@"createMarket", @question, @oracle, ack) = {
+      // JOIN on markets + nextMarketId — atomic ID assignment
+      for (@mkt <- markets; @nextId <- nextMarketId) {
+        // LINEARITY: both consumed, both written back below
+        markets!(mkt.set(nextId, {
+          "question": question,
+          "oracle": oracle,
+          "status": "open",
+          "outcome": "",
+          "totalYes": 0,
+          "totalNo": 0
+        })) |
+        nextMarketId!(nextId + 1) |
+        ack!(nextId)
+      }
+    } |
+
+    // placeBet: Place a yes/no bet on an open market
+    // @marketId: integer market ID
+    // @bettor: string identifier for the bettor
+    // @side: "yes" or "no"
+    // @amount: positive integer bet amount (in dust)
+    // *ack: unquoting — caller receives result
+    contract PredictionMarket(@"placeBet", @marketId, @bettor, @side, @amount, ack) = {
+      // JOIN on markets + bets — atomic to prevent race conditions
+      for (@mkt <- markets; @bts <- bets) {
+        // LINEARITY: both consumed, must write back on ALL paths
+        match mkt.contains(marketId) {
+          false => {
+            // ERROR PATH: restore state
+            markets!(mkt) | bets!(bts) |
+            ack!("error: market not found")
+          }
+          true => {
+            match mkt.get(marketId).get("status") == "open" {
+              false => {
+                markets!(mkt) | bets!(bts) |
+                ack!("error: market is not open")
+              }
+              true => {
+                match (side == "yes") or (side == "no") {
+                  false => {
+                    markets!(mkt) | bets!(bts) |
+                    ack!("error: side must be yes or no")
+                  }
+                  true => {
+                    match amount > 0 {
+                      false => {
+                        markets!(mkt) | bets!(bts) |
+                        ack!("error: amount must be positive")
+                      }
+                      true => {
+                        new betKeyCalc in {
+                          // Build composite key: "marketId:bettor:side"
+                          betKeyCalc!(marketId ++ ":" ++ bettor ++ ":" ++ side) |
+                          for (@bk <- betKeyCalc) {
+                            // Update market totals based on side
+                            new updatedMarketData in {
+                              updatedMarketData!(mkt.get(marketId)) |
+                              for (@m <- updatedMarketData) {
+                                new newMarketData in {
+                                  match side == "yes" {
+                                    true  => { newMarketData!(m.set("totalYes", m.get("totalYes") + amount)) }
+                                    false => { newMarketData!(m.set("totalNo",  m.get("totalNo")  + amount)) }
+                                  } |
+                                  for (@nm <- newMarketData) {
+                                    // Accumulate bet if bettor already bet on same side
+                                    match bts.contains(bk) {
+                                      true  => {
+                                        // LINEARITY: write back both state channels
+                                        markets!(mkt.set(marketId, nm)) |
+                                        bets!(bts.set(bk, bts.get(bk) + amount)) |
+                                        ack!("ok")
+                                      }
+                                      false => {
+                                        markets!(mkt.set(marketId, nm)) |
+                                        bets!(bts.set(bk, amount)) |
+                                        ack!("ok")
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } |
+
+    // resolveMarket: Oracle resolves a market with "yes" or "no"
+    // @caller: must match the oracle set at market creation
+    contract PredictionMarket(@"resolveMarket", @marketId, @caller, @outcome, ack) = {
+      for (@mkt <- markets) {
+        // LINEARITY: mkt consumed, must write back on ALL paths
+        match mkt.contains(marketId) {
+          false => { markets!(mkt) | ack!("error: market not found") }
+          true => {
+            match mkt.get(marketId).get("status") == "open" {
+              false => { markets!(mkt) | ack!("error: market already resolved") }
+              true => {
+                match caller == mkt.get(marketId).get("oracle") {
+                  false => { markets!(mkt) | ack!("error: only oracle can resolve") }
+                  true => {
+                    match (outcome == "yes") or (outcome == "no") {
+                      false => { markets!(mkt) | ack!("error: outcome must be yes or no") }
+                      true => {
+                        new m in {
+                          m!(mkt.get(marketId)) |
+                          for (@mk <- m) {
+                            // PROOF: status transitions from "open" to "resolved" — one-way
+                            markets!(mkt.set(marketId,
+                              mk.set("status", "resolved").set("outcome", outcome)
+                            )) |
+                            ack!(("resolved", marketId, outcome))
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } |
+
+    // computePayout: Read-only — computes a bettor's payout
+    // Returns: integer payout amount, or 0 if loser/no bet
+    // LAW: payout = stake + (stake * loserPool) / winnerPool
+    contract PredictionMarket(@"computePayout", @marketId, @bettor, @side, ack) = {
+      for (@mkt <- markets; @bts <- bets) {
+        // RESTORE immediately — this is a read-only operation
+        markets!(mkt) | bets!(bts) |
+        match mkt.contains(marketId) {
+          false => { ack!("error: market not found") }
+          true => {
+            new m in {
+              m!(mkt.get(marketId)) |
+              for (@mk <- m) {
+                match mk.get("status") == "resolved" {
+                  false => { ack!("error: market not yet resolved") }
+                  true => {
+                    match mk.get("outcome") == side {
+                      false => { ack!(0) }
+                      true => {
+                        new betKeyCalc in {
+                          betKeyCalc!(marketId ++ ":" ++ bettor ++ ":" ++ side) |
+                          for (@bk <- betKeyCalc) {
+                            match bts.contains(bk) {
+                              false => { ack!(0) }
+                              true => {
+                                new userBet, winnerPool, loserPool in {
+                                  userBet!(bts.get(bk)) |
+                                  match side == "yes" {
+                                    true  => { winnerPool!(mk.get("totalYes")) | loserPool!(mk.get("totalNo")) }
+                                    false => { winnerPool!(mk.get("totalNo"))  | loserPool!(mk.get("totalYes")) }
+                                  } |
+                                  // JOIN on all three — atomic read
+                                  for (@ub <- userBet; @wp <- winnerPool; @lp <- loserPool) {
+                                    match wp > 0 {
+                                      false => { ack!(ub) }
+                                      true  => { ack!(ub + (ub * lp) / wp) }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    } |
+
+    // getMarket: Read-only — returns market data
+    contract PredictionMarket(@"getMarket", @marketId, ack) = {
+      for (@mkt <- markets) {
+        // RESTORE immediately — read-only
+        markets!(mkt) |
+        match mkt.contains(marketId) {
+          false => { ack!("error: market not found") }
+          true  => { ack!(mkt.get(marketId)) }
+        }
+      }
+    } |
+
+    // Publish on well-known name for cross-deploy access
+    @"asi_prediction_market_v1"!(*PredictionMarket)
+  }
+}

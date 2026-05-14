@@ -1,0 +1,8 @@
+{
+  "id": "5",
+  "subject": "Deploy prediction market contract via wallet",
+  "description": "Deploy is built into the frontend. User connects wallet with private key and clicks Deploy.",
+  "status": "completed",
+  "blocks": [],
+  "blockedBy": []
+}

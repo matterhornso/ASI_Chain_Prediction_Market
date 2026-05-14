@@ -1,0 +1,17 @@
+{
+  "name": "asi-prediction-market",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "deploy": "node scripts/deploy.js",
+    "create-market": "node scripts/create-market.js",
+    "place-bet": "node scripts/place-bet.js",
+    "resolve-market": "node scripts/resolve-market.js",
+    "get-market": "node scripts/get-market.js",
+    "compute-payout": "node scripts/compute-payout.js"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.8.0",
+    "@noble/hashes": "^1.7.0"
+  }
+}
