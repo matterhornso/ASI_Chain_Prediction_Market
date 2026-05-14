@@ -1,8 +1,0 @@
-{
-  "id": "6",
-  "subject": "Build simple frontend for prediction market",
-  "description": "Create a simple HTML/JS frontend that interacts with the prediction market contract",
-  "status": "completed",
-  "blocks": [],
-  "blockedBy": []
-}

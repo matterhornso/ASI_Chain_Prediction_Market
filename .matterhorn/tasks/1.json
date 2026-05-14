@@ -1,8 +1,0 @@
-{
-  "id": "1",
-  "subject": "Write Rholang prediction market contract",
-  "description": "Create the contract with createMarket, placeBet, resolveMarket, computePayout, getMarket",
-  "status": "completed",
-  "blocks": [],
-  "blockedBy": []
-}
